@@ -4,8 +4,9 @@ machine (like a cloud GPU). It fetches only what process.py reads: Nutrition5k o
 photos plus its labels, the MM-Food CSV plus its first 6,000 photos, and the SNAPMe archive. SNAPMe
 is unpacked whole because its "before" photos are links in snapme_cs_db that point at the real
 files in snapme_nut_db. Files that already exist are skipped, so it is safe to re-run after a crash.
-Look at the printed "failed" counts: about 1,500 Nutrition5k dishes have no overhead photo online,
-and a few MM-Food links may be dead. Both are normal, and process.py skips those rows.
+Look at the printed "failed" counts and the first error shown next to each: about 1,500 Nutrition5k
+dishes have no overhead photo online, and a few MM-Food links may be dead. Both are normal, and
+process.py skips those rows.
 """
 import csv
 import os
@@ -21,26 +22,29 @@ SNAP_URL = "https://ndownloader.figshare.com/files/44532971"  # snapme_db_09Dec2
 N5K, MMF, SNAP = "data/nutrition5k", "data/mmfood", "data/snapme"
 
 
-# Save one URL to a path unless it already exists; returns True on success
+# Save one URL to a path unless it already exists; returns None on success or a short error text
 def fetch(url, path):
     if os.path.exists(path):
-        return True
+        return None
     try:
-        with urllib.request.urlopen(url, timeout=30) as r:
+        # a browser-style user agent is required: the MM-Food photo host rejects Python's default one
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as r:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path + ".part", "wb") as f:
                 shutil.copyfileobj(r, f)
         os.replace(path + ".part", path)
-        return True
-    except Exception:
-        return False
+        return None
+    except Exception as e:
+        return f"{type(e).__name__}: {e}"[:100]
 
 
-# Download many (url, path) pairs at once and print how many failed
+# Download many (url, path) pairs at once; print how many failed and the first error seen
 def fetch_all(name, jobs):
     with ThreadPoolExecutor(16) as pool:
-        ok = list(pool.map(lambda job: fetch(*job), jobs))
-    print(f"{name}: {sum(ok)} ok, {ok.count(False)} failed")
+        errors = [e for e in pool.map(lambda job: fetch(*job), jobs) if e]
+    hint = f", e.g. {errors[0]}" if errors else ""
+    print(f"{name}: {len(jobs) - len(errors)} ok, {len(errors)} failed{hint}")
 
 
 # Nutrition5k labels, then one overhead photo per dish in the train and test splits
