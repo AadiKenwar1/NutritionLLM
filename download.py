@@ -1,10 +1,11 @@
 """Downloads the three datasets into data/, in the exact layout process.py expects.
 This is step zero of NutritionLLM: data/ is too big for git, so this script rebuilds it on any
 machine (like a cloud GPU). It fetches only what process.py reads: Nutrition5k overhead rgb.png
-photos plus its labels, the MM-Food CSV plus its first 6,000 photos, and SNAPMe's computer-science
-database. Files that already exist are skipped, so it is safe to re-run after a crash. Look at the
-printed "failed" counts: about 1,500 Nutrition5k dishes have no overhead photo online, and a few
-MM-Food links may be dead. Both are normal, and process.py skips those rows.
+photos plus its labels, the MM-Food CSV plus its first 6,000 photos, and the SNAPMe archive. SNAPMe
+is unpacked whole because its "before" photos are links in snapme_cs_db that point at the real
+files in snapme_nut_db. Files that already exist are skipped, so it is safe to re-run after a crash.
+Look at the printed "failed" counts: about 1,500 Nutrition5k dishes have no overhead photo online,
+and a few MM-Food links may be dead. Both are normal, and process.py skips those rows.
 """
 import csv
 import os
@@ -65,19 +66,24 @@ def mmfood(limit=6000):
     fetch_all("mmfood photos", jobs)
 
 
-# SNAPMe archive, unpacking only snapme_cs_db and skipping symlinks (they break on Windows)
+# SNAPMe archive, unpacked whole in one pass, skipping symlinks (they break on Windows)
 def snapme():
-    if os.path.exists(f"{SNAP}/snapme_cs_db"):
-        return print("snapme: already there")
     archive = f"{SNAP}/snapme.tar.gz"
+    # the archive is deleted only after a full unpack, so a leftover one means the last try died
+    if os.path.exists(f"{SNAP}/snapme_cs_db") and not os.path.exists(archive):
+        return print("snapme: already there")
     fetch_all("snapme archive", [(SNAP_URL, archive)])
+    if not os.path.exists(archive):
+        return print("snapme: download failed, run again")
+    count = 0
     with tarfile.open(archive) as tar:
-        keep = [m for m in tar if "snapme_cs_db" in m.name and not (m.issym() or m.islnk())]
-        for m in keep:  # drop any folder above snapme_cs_db so the layout matches process.py
-            m.name = m.name[m.name.index("snapme_cs_db"):]
-        tar.extractall(SNAP, members=keep)
+        for m in tar:
+            if "/" in m.name and not (m.issym() or m.islnk()):
+                m.name = m.name.split("/", 1)[1]  # drop the top folder so the layout matches process.py
+                tar.extract(m, SNAP, filter="data")
+                count += 1
     os.remove(archive)
-    print(f"snapme: unpacked {len(keep)} files")
+    print(f"snapme: unpacked {count} files")
 
 
 nutrition5k()

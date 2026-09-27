@@ -65,7 +65,9 @@ def load(path=DEFAULT):
         with open(f"{path}/adapter_config.json") as f:
             base = json.load(f)["base_model_name_or_path"]
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    dtype = torch.bfloat16 if device == "cuda" else torch.float32
+    # bfloat16 needs a GPU with compute capability 8+ (Ampere); older cards like the T4 only emulate it
+    fast = device == "cuda" and torch.cuda.get_device_capability()[0] >= 8
+    dtype = torch.bfloat16 if fast else torch.float32
     model = AutoModelForImageTextToText.from_pretrained(base, dtype=dtype).to(device)
     if base != path:
         from peft import PeftModel
