@@ -1,0 +1,28 @@
+{
+ "rows": 20,
+ "parsed": 1.0,
+ "food_precision": 0.30333333333333334,
+ "food_recall": 0.27125,
+ "grams_mae": 159.87,
+ "photo_answered": 0.95,
+ "photo_mae": {
+  "kcal": 213.01052631578946,
+  "protein_g": 9.873684210526315,
+  "carbs_g": 37.76315789473684,
+  "fat_g": 9.094736842105263
+ },
+ "chain_answered": 1.0,
+ "chain_mae": {
+  "kcal": 177.2,
+  "protein_g": 9.635,
+  "carbs_g": 29.71,
+  "fat_g": 10.540000000000001
+ },
+ "text_answered": 1.0,
+ "text_mae": {
+  "kcal": 200.505,
+  "protein_g": 10.57,
+  "carbs_g": 30.890000000000004,
+  "fat_g": 11.015
+ }
+}
