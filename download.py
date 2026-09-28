@@ -22,21 +22,27 @@ SNAP_URL = "https://ndownloader.figshare.com/files/44532971"  # snapme_db_09Dec2
 N5K, MMF, SNAP = "data/nutrition5k", "data/mmfood", "data/snapme"
 
 
-# Save one URL to a path unless it already exists; returns None on success or a short error text
+# User agents to try in turn: the MM-Food photo host rejects Python's default one, while the SNAPMe
+# host has refused the browser-style one from cloud machines
+AGENTS = ("Mozilla/5.0", None)
+
+
+# Save one URL to a path unless it already exists; returns None on success or the last error text
 def fetch(url, path):
     if os.path.exists(path):
         return None
-    try:
-        # a browser-style user agent is required: the MM-Food photo host rejects Python's default one
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path + ".part", "wb") as f:
-                shutil.copyfileobj(r, f)
-        os.replace(path + ".part", path)
-        return None
-    except Exception as e:
-        return f"{type(e).__name__}: {e}"[:100]
+    for agent in AGENTS:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": agent} if agent else {})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path + ".part", "wb") as f:
+                    shutil.copyfileobj(r, f)
+            os.replace(path + ".part", path)
+            return None
+        except Exception as e:
+            error = f"{type(e).__name__}: {e}"[:100]
+    return error
 
 
 # Download many (url, path) pairs at once; print how many failed and the first error seen
