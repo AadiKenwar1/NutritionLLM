@@ -75,8 +75,9 @@ def load(path=DEFAULT):
     return model.eval(), AutoProcessor.from_pretrained(base)
 
 
-# Send one prompt (with an optional image) through the model and return its reply text
-def ask(model, processor, prompt, image=None, max_new_tokens=300):
+# Send one prompt (with an optional image) through the model and return its reply text; the cap must
+# cover the longest true answer (Nutrition5k dishes with 30+ foods run past 600 tokens)
+def ask(model, processor, prompt, image=None, max_new_tokens=700):
     inputs = processor.apply_chat_template([user_turn(prompt, image)], add_generation_prompt=True,
                                            return_tensors="pt", return_dict=True, tokenize=True).to(model.device)
     with torch.no_grad():

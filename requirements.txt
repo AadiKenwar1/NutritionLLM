@@ -1,6 +1,7 @@
 # Python packages for NutritionLLM, pinned to the versions this project was tested with.
 # torch and torchvision are left out on purpose: install the build that matches the machine first
 # (CPU here, CUDA on a cloud GPU; Kaggle and Colab already ship them), then pip install -r requirements.txt
+# On Kaggle also run: pip uninstall -y torchao  (its old torchao makes peft refuse to load)
 transformers==5.17.0
 peft==0.21.0
 accelerate==1.15.0
