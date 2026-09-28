@@ -4,7 +4,8 @@ checkpoint, and train.py reuses the same prompts, image handling, and meal text 
 testing match. The model path can be a Hugging Face id or a local folder. A LoRA adapter folder is
 applied on top of its base model, so the stock model and every fine-tuned run are loaded and scored
 the same way. Photos are shrunk to 512 px on the longest side (the model's native tile size), so
-every image costs about the same number of tokens. Look at PHOTO and TEXT for the exact wording
+every image costs about the same number of tokens. A few SNAPMe photos are iPhone HEIC files named
+.jpeg, so the HEIC reader is switched on. Look at PHOTO and TEXT for the exact wording
 and JSON shape the model is asked for.
 """
 import argparse
@@ -13,7 +14,10 @@ import os
 
 import torch
 from PIL import Image
+from pillow_heif import register_heif_opener
 from transformers import AutoModelForImageTextToText, AutoProcessor
+
+register_heif_opener()
 
 DEFAULT = "LiquidAI/LFM2.5-VL-450M"
 MAX_SIDE = 512

@@ -4,6 +4,7 @@ machine (like a cloud GPU). It fetches only what process.py reads: Nutrition5k o
 photos plus its labels, the MM-Food CSV plus its first 6,000 photos, and the SNAPMe archive. SNAPMe
 is unpacked whole because its "before" photos are links in snapme_cs_db that point at the real
 files in snapme_nut_db. Files that already exist are skipped, so it is safe to re-run after a crash.
+Name datasets to fetch only some, like "python download.py nutrition5k snapme" on a test-only machine.
 Look at the printed "failed" counts and the first error shown next to each: about 1,500 Nutrition5k
 dishes have no overhead photo online, and a few MM-Food links may be dead. Both are normal, and
 process.py skips those rows.
@@ -11,6 +12,7 @@ process.py skips those rows.
 import csv
 import os
 import shutil
+import sys
 import tarfile
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -45,10 +47,13 @@ def fetch(url, path):
     return error
 
 
-# Download many (url, path) pairs at once; print how many failed and the first error seen
+# Download many (url, path) pairs at once with a progress count; print how many failed and the first error
 def fetch_all(name, jobs):
+    errors = []
     with ThreadPoolExecutor(16) as pool:
-        errors = [e for e in pool.map(lambda job: fetch(*job), jobs) if e]
+        for n, error in enumerate(pool.map(lambda job: fetch(*job), jobs), 1):
+            errors += [error] if error else []
+            print(f"{name}: {n}/{len(jobs)}", end="\r", flush=True)
     hint = f", e.g. {errors[0]}" if errors else ""
     print(f"{name}: {len(jobs) - len(errors)} ok, {len(errors)} failed{hint}")
 
@@ -96,6 +101,7 @@ def snapme():
     print(f"snapme: unpacked {count} files")
 
 
-nutrition5k()
-mmfood()
-snapme()
+# Datasets to fetch, chosen by name on the command line; no names means all three
+STEPS = {"nutrition5k": nutrition5k, "mmfood": mmfood, "snapme": snapme}
+for name in sys.argv[1:] or STEPS:
+    STEPS[name]()

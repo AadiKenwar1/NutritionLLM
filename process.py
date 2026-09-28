@@ -5,7 +5,8 @@ and macros that another model estimated, so the MM-Food macros are distillation,
 test_lab.jsonl (Nutrition5k lab photos) and test_real_world.jsonl (SNAPMe phone photos, never
 trained on) check how well it works. Look at the printed counts: MM-Food only includes images that
 have finished downloading, so re-run this after the download ends. Rows with a missing image or a
-placeholder label ("deprecated", "plate only", "N/A") are skipped on purpose.
+placeholder label ("deprecated", "plate only", "N/A") are skipped on purpose. A source that was never
+downloaded is skipped with a note, so a test-only machine can build test_lab.jsonl without the rest.
 """
 import csv
 import json
@@ -67,6 +68,14 @@ def snapme():
             for name, foods in meals.items() if os.path.exists(paths[name])]
 
 
+# Build one source's rows if its key file was downloaded; otherwise print a note and give none
+def rows_if(path, build):
+    if os.path.exists(path):
+        return build()
+    print(f"{path} missing, skipped")
+    return []
+
+
 # Save rows as JSONL and print how many went in
 def write(name, rows):
     with open(f"{OUT}/{name}", "w", encoding="utf-8") as f:
@@ -79,10 +88,10 @@ with open(f"{N5K}/metadata/dish_metadata_cafe1.csv") as f:
     meta = {r[0]: r for r in csv.reader(f)}
 
 os.makedirs(OUT, exist_ok=True)
-n5k, mm = nutrition5k("train", meta), mmfood()
+n5k, mm = nutrition5k("train", meta), rows_if(f"{MMF}/MM-Food-100K.csv", mmfood)
 print(f"train sources: {len(n5k)} Nutrition5k + {len(mm)} MM-Food")
 train = n5k + mm
 random.Random(42).shuffle(train)
 write("train.jsonl", train)
 write("test_lab.jsonl", nutrition5k("test", meta))
-write("test_real_world.jsonl", snapme())
+write("test_real_world.jsonl", rows_if(f"{SNAP}/snapme_cs_db/master_SNAPME_linkfile.csv", snapme))
