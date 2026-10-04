@@ -1,7 +1,9 @@
 """Builds data/processed/ with three JSONL files: one example per line, with image paths (no copies).
 This is the first step of NutritionLLM. The model learns from train.jsonl, which mixes Nutrition5k
 dishes (foods, grams, measured macros) with up to 6,000 MM-Food photos (dish name, ingredients,
-and macros that another model estimated, so the MM-Food macros are distillation, not ground truth).
+portions, and macros that another model estimated, so the MM-Food macros are distillation, not
+ground truth). The portions are MM-Food's rough weight guesses like "rice:200g", saved as foods with
+grams; a row gets an empty portions list if any of its weights can't be read (like "egg:1").
 test_lab.jsonl (Nutrition5k lab photos) and test_real_world.jsonl (SNAPMe phone photos, never
 trained on) check how well it works. Look at the printed counts: MM-Food only includes images that
 have finished downloading, so re-run this after the download ends. Rows with a missing image or a
@@ -12,6 +14,7 @@ import csv
 import json
 import os
 import random
+import re
 from itertools import islice
 
 N5K, MMF, SNAP, OUT = "data/nutrition5k", "data/mmfood", "data/snapme", "data/processed"
@@ -37,7 +40,20 @@ def nutrition5k(split, meta):
     return rows
 
 
-# MM-Food rows with a downloaded image: dish name, ingredients, and model-estimated macros
+# Grams in each MM-Food portion unit; a millilitre of drink or broth counts as one gram
+UNITS = {"g": 1, "ml": 1, "kg": 1000}
+PORTION = re.compile(r"\s*(.+?)\s*:\s*(\d+(?:\.\d+)?)\s*(kg|g|ml)\s*", re.I)
+
+
+# MM-Food "name:NNNg" portions as foods with grams; one unreadable weight empties the whole list
+def portions(texts):
+    found = [PORTION.fullmatch(t) for t in texts]
+    if not all(found):
+        return []
+    return [{"food": m[1], "grams": round(float(m[2]) * UNITS[m[3].lower()], 1)} for m in found]
+
+
+# MM-Food rows with a downloaded image: dish name, ingredients, portions, and model-estimated macros
 def mmfood(limit=6000):
     rows = []
     with open(f"{MMF}/MM-Food-100K.csv", encoding="utf-8") as f:
@@ -47,6 +63,7 @@ def mmfood(limit=6000):
                 totals = (p["calories_kcal"], p["protein_g"], p["carbohydrate_g"], p["fat_g"])
                 rows.append({"image": image, "task": "foods", "answer": {
                     "dish": r["dish_name"], "foods": json.loads(r["ingredients"]),
+                    "portions": portions(json.loads(r["portion_size"])),
                     "totals": dict(zip(("kcal", "protein_g", "carbs_g", "fat_g"), map(float, totals)))}})
     return rows
 
@@ -89,7 +106,8 @@ with open(f"{N5K}/metadata/dish_metadata_cafe1.csv") as f:
 
 os.makedirs(OUT, exist_ok=True)
 n5k, mm = nutrition5k("train", meta), rows_if(f"{MMF}/MM-Food-100K.csv", mmfood)
-print(f"train sources: {len(n5k)} Nutrition5k + {len(mm)} MM-Food")
+weighed = sum(bool(r["answer"]["portions"]) for r in mm)
+print(f"train sources: {len(n5k)} Nutrition5k + {len(mm)} MM-Food ({weighed} with portions)")
 train = n5k + mm
 random.Random(42).shuffle(train)
 write("train.jsonl", train)

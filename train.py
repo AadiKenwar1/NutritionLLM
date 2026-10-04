@@ -1,12 +1,14 @@
 """Fine-tunes the model with LoRA on train.jsonl and saves the adapter to its own run folder.
 This is the learning step of NutritionLLM. Each training row becomes one or two short chats built
 with the same prompts as predict.py: a photo chat (image -> dish, foods, grams, totals) and a typed
-meal chat (food list -> totals), so the model learns exactly what test.py asks for. --mmfood picks
-how MM-Food rows are used: "full" keeps their model-estimated macros, "labels" keeps only the dish
-and foods, "none" drops them. Only the small LoRA layers train, so the run folder holds a few tens
-of megabytes that predict.load() applies on top of the base model. Look at the printed loss: it
-should fall steadily, and a run that ends near its starting loss learned nothing. Prove a change
-with --limit on a few rows before a full run on a GPU.
+meal chat (food list -> totals), so the model learns exactly what test.py asks for. MM-Food rows
+answer with their portion list, so every food has grams and the model never learns that phone photos
+come without weights; rows with no readable portions are skipped. --mmfood picks how MM-Food rows
+are used: "full" keeps their model-estimated macros, "labels" keeps only the dish, foods, and grams,
+"none" drops them. Only the small LoRA layers train, so the run folder holds a few tens of megabytes
+that predict.load() applies on top of the base model. Look at the printed loss: it should fall
+steadily, and a run that ends near its starting loss learned nothing. Prove a change with --limit on
+a few rows before a full run on a GPU.
 """
 import argparse
 import json
@@ -29,7 +31,7 @@ def photo_answer(row, mmfood):
     a = row["answer"]
     if row["task"] == "full":
         return {"items": a["items"], "totals": a["totals"]}
-    answer = {"dish": a["dish"], "items": [{"food": f} for f in a["foods"]]}
+    answer = {"dish": a["dish"], "items": a["portions"]}
     if mmfood == "full":
         answer["totals"] = a["totals"]
     return answer
@@ -37,7 +39,8 @@ def photo_answer(row, mmfood):
 
 # Turn one training row into (image path, prompt, answer text) chats; image None means a typed meal
 def chats(row, mmfood):
-    if row["task"] != "full" and mmfood == "none":
+    # MM-Food rows are dropped by --mmfood none, and skipped when they have no readable portions
+    if row["task"] != "full" and (mmfood == "none" or not row["answer"]["portions"]):
         return []
     photo = photo_answer(row, mmfood)
     out = [(row["image"], predict.PHOTO, json.dumps(photo))]
