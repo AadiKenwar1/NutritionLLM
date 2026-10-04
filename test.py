@@ -3,13 +3,16 @@ This is how NutritionLLM measures progress: run it on the stock model for a base
 fine-tuned run, and compare the saved reports in results/. Every test row is a photo with its true
 foods, grams, and macros. Three answers are scored per row: "photo" (foods, grams, and macros straight
 from the image), "chain" (macros from the foods the model listed, as text), and "text" (macros from
-the true food list, as if the user typed it). Look at "parsed" first: a low value means the model is
-not returning usable JSON, and every other number suffers from it.
+the true food list, as if the user typed it). Food names are matched by their words in singular
+form, so "cherry tomatoes" counts for "Tomatoes, raw" but "egg" does not count for "eggplant". Look at
+"parsed" first: a low value means the model is not returning usable JSON, and every other number
+suffers from it.
 """
 import argparse
 import json
 import os
 import random
+import re
 import time
 
 import predict
@@ -17,9 +20,32 @@ import predict
 KEYS = ("kcal", "protein_g", "carbs_g", "fat_g")
 
 
-# True if a food name contains, or is contained in, any of the other names
+# Plural endings and their singular forms, first match wins; "ie" keeps "cookie" equal to "cookies"
+ENDINGS = (("ies", "y"), ("ie", "y"), ("oes", "o"), ("ches", "ch"), ("shes", "sh"), ("ss", "ss"), ("s", ""))
+
+
+# A word without its plural ending: "tomatoes" -> "tomato", "berries" -> "berry", "eggs" -> "egg"
+def singular(word):
+    for end, new in ENDINGS:
+        if word.endswith(end):
+            return word[:-len(end)] + new
+    return word
+
+
+# A name's singular words, so "Tomatoes, raw" and "cherry tomato" share the word "tomato"
+def words(name):
+    return {singular(w) for w in re.findall(r"[a-z]+", name)}
+
+
+# True if every word of the shorter name is in the longer one
+def same_food(a, b):
+    a, b = words(a), words(b)
+    return bool(a and b) and (a <= b or b <= a)
+
+
+# True if a name matches any other, as whole names or as the parts before the first comma
 def matches(name, others):
-    return any(name in other or other in name for other in others)
+    return any(same_food(name, o) or same_food(name.split(",")[0], o.split(",")[0]) for o in others)
 
 
 # Precision and recall of predicted food names, using matches() to decide a hit
