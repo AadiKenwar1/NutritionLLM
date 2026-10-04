@@ -1,9 +1,12 @@
-"""Downloads the three datasets into data/, in the exact layout process.py expects.
+"""Downloads the four datasets into data/, in the exact layout process.py expects.
 This is step zero of NutritionLLM: data/ is too big for git, so this script rebuilds it on any
 machine (like a cloud GPU). It fetches only what process.py reads: Nutrition5k overhead rgb.png
 photos plus its labels, the MM-Food CSV plus its first 6,000 photos, and the SNAPMe archive. SNAPMe
 is unpacked whole because its "before" photos are links in snapme_cs_db that point at the real
-files in snapme_nut_db. Files that already exist are skipped, so it is safe to re-run after a crash.
+files in snapme_nut_db. The fourth dataset is the USDA survey food table (FNDDS 2017-2018: macros
+per 100 g and serving sizes for about 7,000 foods), the source for typed-meal practice rows; it
+stays zipped, and process.py does not read it yet. Files that already exist are skipped, so it is
+safe to re-run after a crash.
 Name datasets to fetch only some, like "python download.py nutrition5k snapme" on a test-only machine.
 Look at the printed "failed" counts and the first error shown next to each: about 1,500 Nutrition5k
 dishes have no overhead photo online, and a few MM-Food links may be dead. Both are normal, and
@@ -21,7 +24,9 @@ from itertools import islice
 N5K_URL = "https://storage.googleapis.com/nutrition5k_dataset/nutrition5k_dataset"
 MMF_CSV = "https://huggingface.co/datasets/Codatta/MM-Food-100K/resolve/main/MM-Food-100K.csv"
 SNAP_URL = "https://ndownloader.figshare.com/files/44532971"  # snapme_db_09Dec2022.tar.gz, ~2 GB
-N5K, MMF, SNAP = "data/nutrition5k", "data/mmfood", "data/snapme"
+# FNDDS 2017-2018 (~4 MB), the release whose food codes and names match SNAPMe's labels best
+USDA_URL = "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_survey_food_json_2021-10-28.zip"
+N5K, MMF, SNAP, USDA = "data/nutrition5k", "data/mmfood", "data/snapme", "data/usda"
 
 
 # User agents to try in turn: the MM-Food photo host rejects Python's default one, while the SNAPMe
@@ -101,7 +106,12 @@ def snapme():
     print(f"snapme: unpacked {count} files")
 
 
-# Datasets to fetch, chosen by name on the command line; no names means all three
-STEPS = {"nutrition5k": nutrition5k, "mmfood": mmfood, "snapme": snapme}
+# USDA survey food table, kept zipped under its own file name (one JSON file inside)
+def usda():
+    fetch_all("usda table", [(USDA_URL, f"{USDA}/{os.path.basename(USDA_URL)}")])
+
+
+# Datasets to fetch, chosen by name on the command line; no names means all four
+STEPS = {"nutrition5k": nutrition5k, "mmfood": mmfood, "snapme": snapme, "usda": usda}
 for name in sys.argv[1:] or STEPS:
     STEPS[name]()
