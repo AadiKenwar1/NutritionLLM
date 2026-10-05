@@ -79,9 +79,10 @@ def load(path=DEFAULT):
     return model.eval(), AutoProcessor.from_pretrained(base)
 
 
-# Send one prompt (with an optional image) through the model and return its reply text; the cap must
-# cover the longest true answer (Nutrition5k dishes with 30+ foods run past 600 tokens)
-def ask(model, processor, prompt, image=None, max_new_tokens=700):
+# Send one prompt (with an optional image) through the model and return its reply text. The cap must
+# cover the longest true answer (Nutrition5k dishes with 30+ foods run past 600 tokens) with room to
+# spare: on busy plates the model lists more foods than the truth, and a cut-off reply is unreadable
+def ask(model, processor, prompt, image=None, max_new_tokens=1000):
     inputs = processor.apply_chat_template([user_turn(prompt, image)], add_generation_prompt=True,
                                            return_tensors="pt", return_dict=True, tokenize=True).to(model.device)
     with torch.no_grad():
@@ -98,9 +99,10 @@ def parse(reply):
         return None
 
 
-# Photo -> dict with dish, items (food, grams), and totals
+# Photo -> (dict with dish, items (food, grams), and totals; the raw reply, to inspect when the dict is None)
 def predict_photo(model, processor, image_path):
-    return parse(ask(model, processor, PHOTO, open_image(image_path)))
+    reply = ask(model, processor, PHOTO, open_image(image_path))
+    return parse(reply), reply
 
 
 # Typed meal text -> dict with kcal, protein_g, carbs_g, fat_g

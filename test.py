@@ -4,9 +4,13 @@ fine-tuned run, and compare the saved reports in results/. Every test row is a p
 foods, grams, and macros. Three answers are scored per row: "photo" (foods, grams, and macros straight
 from the image), "chain" (macros from the foods the model listed, as text), and "text" (macros from
 the true food list, as if the user typed it). Food names are matched by their words in singular
-form, so "cherry tomatoes" counts for "Tomatoes, raw" but "egg" does not count for "eggplant". Look at
-"parsed" first: a low value means the model is not returning usable JSON, and every other number
-suffers from it.
+form, so "cherry tomatoes" counts for "Tomatoes, raw" but "egg" does not count for "eggplant". When
+the test rows list their "unseen" foods (see process.py), the "text" error is also split into meals
+whose foods were all in the USDA typed practice ("seen") and meals with a food that was not
+("unseen"); compare the two against a run trained with --no-usda, because unseen meals hold more
+foods and are harder to begin with. Look at "parsed" first: a low value means the model is not
+returning usable JSON, and every other number suffers from it. The saved rows keep the raw text of
+each unreadable photo answer under "raw", to show what went wrong.
 """
 import argparse
 import json
@@ -67,7 +71,8 @@ def macro_errors(true, pred):
 # Get all three answers for one row and return everything worth saving
 def score_row(model, processor, row):
     true = row["answer"]
-    photo = predict.predict_photo(model, processor, row["image"]) or {}
+    photo, reply = predict.predict_photo(model, processor, row["image"])
+    photo = photo or {}
     items = [i for i in photo.get("items") or [] if isinstance(i, dict) and "food" in i]
     chain = predict.predict_text(model, processor, predict.meal_text(items)) if items else None
     text = predict.predict_text(model, processor, predict.meal_text(true["items"]))
@@ -78,7 +83,8 @@ def score_row(model, processor, row):
             "grams_error": None if grams is None else abs(grams - true_grams),
             "photo": macro_errors(true["totals"], photo.get("totals")),
             "chain": macro_errors(true["totals"], chain), "text": macro_errors(true["totals"], text),
-            "pred": {"photo": photo, "chain": chain, "text": text}}
+            "pred": {"photo": photo, "chain": chain, "text": text},
+            "raw": None if photo else reply, "unseen": row.get("unseen")}
 
 
 # Average a list of numbers, skipping None; None if there is nothing to average
@@ -97,6 +103,12 @@ def summarize(rows):
         errors = [r[name] for r in rows if r[name]]
         report[f"{name}_answered"] = len(errors) / len(rows)
         report[f"{name}_mae"] = {k: mean([e[k] for e in errors]) for k in KEYS}
+    # typed error for meals with only practiced foods, and for meals with a food the typed practice never used
+    groups = {"seen": [r for r in rows if r["unseen"] == []], "unseen": [r for r in rows if r["unseen"]]}
+    for name, group in groups.items():
+        if group:
+            report[f"text_{name}_rows"] = len(group)
+            report[f"text_{name}_mae"] = {k: mean([r["text"][k] for r in group if r["text"]]) for k in KEYS}
     for k, v in report.items():
         if isinstance(v, dict):
             v = json.dumps(v)

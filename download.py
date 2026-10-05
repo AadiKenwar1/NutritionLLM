@@ -4,9 +4,9 @@ machine (like a cloud GPU). It fetches only what process.py reads: Nutrition5k o
 photos plus its labels, the MM-Food CSV plus its first 6,000 photos, and the SNAPMe archive. SNAPMe
 is unpacked whole because its "before" photos are links in snapme_cs_db that point at the real
 files in snapme_nut_db. The fourth dataset is the USDA survey food table (FNDDS 2017-2018: macros
-per 100 g and serving sizes for about 7,000 foods), the source for typed-meal practice rows; it
-stays zipped, and process.py does not read it yet. Files that already exist are skipped, so it is
-safe to re-run after a crash.
+per 100 g and serving sizes for about 7,000 foods), which process.py turns into typed-meal practice
+rows; it stays zipped, and process.py reads it that way. Files that already exist are skipped, so
+it is safe to re-run after a crash.
 Name datasets to fetch only some, like "python download.py nutrition5k snapme" on a test-only machine.
 Look at the printed "failed" counts and the first error shown next to each: about 1,500 Nutrition5k
 dishes have no overhead photo online, and a few MM-Food links may be dead. Both are normal, and

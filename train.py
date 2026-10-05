@@ -5,7 +5,8 @@ meal chat (food list -> totals), so the model learns exactly what test.py asks f
 answer with their portion list, so every food has grams and the model never learns that phone photos
 come without weights; rows with no readable portions are skipped. --mmfood picks how MM-Food rows
 are used: "full" keeps their model-estimated macros, "labels" keeps only the dish, foods, and grams,
-"none" drops them. Only the small LoRA layers train, so the run folder holds a few tens of megabytes
+"none" drops them. USDA rows are typed meals with no photo, so each becomes one typed chat; --no-usda
+drops them. Only the small LoRA layers train, so the run folder holds a few tens of megabytes
 that predict.load() applies on top of the base model. Look at the printed loss: it should fall
 steadily, and a run that ends near its starting loss learned nothing. Prove a change with --limit on
 a few rows before a full run on a GPU.
@@ -37,15 +38,24 @@ def photo_answer(row, mmfood):
     return answer
 
 
+# A typed-meal chat: the food list as text -> its totals; the image slot is None
+def typed_chat(items, totals):
+    return None, predict.text_prompt(predict.meal_text(items)), json.dumps(totals)
+
+
 # Turn one training row into (image path, prompt, answer text) chats; image None means a typed meal
-def chats(row, mmfood):
+def chats(row, mmfood, usda):
+    a = row["answer"]
+    # USDA rows have no photo, so they give only a typed chat; --no-usda drops them
+    if row["task"] == "typed":
+        return [typed_chat(a["items"], a["totals"])] if usda else []
     # MM-Food rows are dropped by --mmfood none, and skipped when they have no readable portions
-    if row["task"] != "full" and (mmfood == "none" or not row["answer"]["portions"]):
+    if row["task"] == "foods" and (mmfood == "none" or not a["portions"]):
         return []
     photo = photo_answer(row, mmfood)
     out = [(row["image"], predict.PHOTO, json.dumps(photo))]
     if "totals" in photo:
-        out.append((None, predict.text_prompt(predict.meal_text(photo["items"])), json.dumps(photo["totals"])))
+        out.append(typed_chat(photo["items"], photo["totals"]))
     return out
 
 
@@ -66,16 +76,17 @@ if __name__ == "__main__":
     p.add_argument("--model", default=predict.DEFAULT, help="base model to fine-tune")
     p.add_argument("--data", default="data/processed/train.jsonl")
     p.add_argument("--mmfood", choices=["full", "labels", "none"], default="full")
-    p.add_argument("--out", help="run folder; default runs/<mmfood>")
+    p.add_argument("--usda", action=argparse.BooleanOptionalAction, default=True, help="use the USDA typed meals")
+    p.add_argument("--out", help="run folder; default runs/<mmfood>, with _usda added when --usda is on")
     p.add_argument("--limit", type=int, default=0, help="train on only the first N rows; 0 means all")
     p.add_argument("--epochs", type=int, default=1)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--rank", type=int, default=16, help="LoRA rank; alpha is twice this")
     a = p.parse_args()
-    out = a.out or f"runs/{a.mmfood}"
+    out = a.out or f"runs/{a.mmfood}{'_usda' if a.usda else ''}"
     with open(a.data, encoding="utf-8") as f:
         rows = [json.loads(line) for line in f][:a.limit or None]
-    examples = [c for row in rows for c in chats(row, a.mmfood)]
+    examples = [c for row in rows for c in chats(row, a.mmfood, a.usda)]
     print(f"{len(rows)} rows -> {len(examples)} chats, saving to {out}")
     torch.manual_seed(0)
     model, processor = predict.load(a.model)
