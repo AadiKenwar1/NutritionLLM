@@ -71,7 +71,7 @@ python predict.py --model runs/full_usda --text "2 eggs, 1 slice toast"
 
 ## Kaggle
 
-Notebooks in `notebooks/`: `quick_check` (2 min, proves setup) and `full_run` (the real run).
+Two notebooks in `notebooks/`. Both clone the repo from GitHub, so `git push` first.
 
 Once:
 
@@ -84,15 +84,22 @@ kaggle auth login
 - Put your username in the `id` line of each `notebooks/*/kernel-metadata.json`.
 - Forks: change the GitHub clone URL in each notebook's first code cell.
 
-Each run:
+Quick check, after changing how runs are sent or which libraries they use:
 
 ```
-git push                                                        # Kaggle clones from GitHub
-kaggle kernels push -p notebooks/full_run                       # ~8 hours
+kaggle kernels push -p notebooks/quick_check                    # ~2 min
+kaggle kernels status <you>/nutritionllm-quick-check            # QUEUED, RUNNING, COMPLETE, or ERROR
+kaggle kernels output <you>/nutritionllm-quick-check -p results # passed if quick_check.txt is there
+```
+
+Full run:
+
+```
+kaggle kernels push -p notebooks/full_run                       # ~1-8 hours
 kaggle kernels status <you>/nutritionllm-full-run
-kaggle kernels logs <you>/nutritionllm-full-run --follow
-kaggle kernels output <you>/nutritionllm-full-run -p results    # fix2.zip
-unzip -o results/fix2.zip                                       # PowerShell: Expand-Archive results\fix2.zip -DestinationPath . -Force
+kaggle kernels logs <you>/nutritionllm-full-run --follow        # once RUNNING
+kaggle kernels output <you>/nutritionllm-full-run -p results    # output.zip
+unzip -o results/output.zip                                     # PowerShell: Expand-Archive results\output.zip -DestinationPath . -Force
 ```
 
 - `full_run`: clone, download, 40-row quick try with a safety stop, two "Model" cells, zip. Edit the Model cells to change the experiment.
@@ -103,5 +110,6 @@ unzip -o results/fix2.zip                                       # PowerShell: Ex
 
 - `data/`, `results/`: not in git.
 - `runs/`: one folder per run; weights not in git.
+- `notebooks/`: the two Kaggle notebooks and their `kernel-metadata.json` settings.
 - `docs/proposedFixes.md`: current numbers and next steps.
 - `AGENTS.md`: code rules.
