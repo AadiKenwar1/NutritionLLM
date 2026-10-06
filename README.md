@@ -1,121 +1,107 @@
 # NutritionLLM
 
-One small vision-language model that reads a meal photo, or a typed meal, and returns the foods,
-their grams, and the calories and macros. It is small enough to run on a phone.
+A phone-sized vision-language model. Meal photo or typed meal in; foods, grams, and macros out.
 
-- Base model: [LiquidAI/LFM2.5-VL-450M](https://huggingface.co/LiquidAI/LFM2.5-VL-450M), 450 million parameters.
-- Fine-tuned with LoRA, so only small add-on layers learn (about 7 million weights, a 28 MB file).
-- One model handles every task, and each task has its own score, so weak spots are easy to see.
+- Base: [LiquidAI/LFM2.5-VL-450M](https://huggingface.co/LiquidAI/LFM2.5-VL-450M), 450M parameters.
+- LoRA fine-tune: 7M trained weights, a 28 MB adapter.
+- One model for every task, one score per task.
 
-| You give it | It answers with, as JSON |
+| Input | Output (JSON) |
 |---|---|
-| A meal photo | the dish name, each food with its grams, and totals (kcal, protein, carbs, fat) |
-| A typed meal, like "2 eggs, 1 slice toast" | totals (kcal, protein, carbs, fat) |
+| Meal photo | dish, foods with grams, totals (kcal, protein, carbs, fat) |
+| Typed meal | totals |
 
-The exact prompts are in `predict.py`.
+Prompts: `predict.py`.
 
-## The data
+## Data
 
-Four sources. None of it is in git; `download.py` fetches about 16 GB into `data/`.
+Not in git. `download.py` fetches about 16 GB into `data/`.
 
-| Source | What it is | How we use it |
+| Source | What | Use |
 |---|---|---|
-| Nutrition5k | Cafeteria dishes photographed from above, every ingredient weighed, macros measured | Training (2,731 dishes) and the lab test (498 dishes) |
-| MM-Food-100K | Phone-style food photos with a dish name, ingredients, rough portions, and macros estimated by a bigger model | Training only, the first 6,000 photos; its macros are guesses, not measurements |
-| SNAPMe | 1,478 real meals photographed with phones by study participants, with foods, grams, and nutrients from the USDA table | The real-world test only; never trained on |
-| USDA FNDDS 2017-2018 | The US food table: about 7,000 foods with macros per 100 g and usual serving sizes | 5,000 typed practice meals; a fifth of the foods are held out of them |
+| Nutrition5k | Lab dishes from above, weighed, macros measured | Train (2,731), lab test (498) |
+| MM-Food-100K | Phone photos; dish, ingredients, rough portions, macros estimated by another model | Train only, first 6,000 |
+| SNAPMe | 1,478 real phone meals; foods, grams, USDA nutrients | Real-world test only |
+| USDA FNDDS 2017-2018 | 7,000 foods; macros per 100 g, serving sizes | 5,000 typed practice meals; 1/5 of foods held out |
 
-Why these four: lab plates teach exact weights and measured macros, phone photos teach what real
-photos look like, the USDA table teaches food names, drinks, and big totals, and SNAPMe shows how
-well it all works on real meals.
+## Pipeline
 
-## How it works
+1. `process.py` writes `train.jsonl`, `test_lab.jsonl`, `test_real_world.jsonl` to `data/processed/`. Real-world rows list "unseen" foods: ones no typed meal used.
+2. `train.py` turns rows into chats (photo -> dish, foods, grams, totals; food list -> totals) and saves a LoRA adapter under `runs/`.
+3. `test.py` scores each test photo three ways and writes `results/<run>_<test>.json` (report) and `.jsonl` (every row).
+4. Compare against the stock model and the constant guess in [docs/proposedFixes.md](docs/proposedFixes.md). A fix must beat both.
 
-1. **Build** (`process.py`): writes `train.jsonl`, `test_lab.jsonl`, and `test_real_world.jsonl` into `data/processed/`. Each real-world row also lists its "unseen" foods, the ones no typed practice meal used.
-2. **Train** (`train.py`): every row becomes one or two short chats, photo -> dish, foods, grams, totals, and typed food list -> totals. The LoRA layers save to their own folder under `runs/`.
-3. **Score** (`test.py`): asks three questions about every test photo, then reports readable answers, food names right and found, weight error, and calorie and macro errors to `results/`.
-4. **Compare**: two yardsticks, the stock model and "always guess the middle value". A fix counts only if it beats both. Today's numbers and next steps are in [docs/proposedFixes.md](docs/proposedFixes.md).
+Scores per photo:
 
-The three questions per test photo:
+- **photo**: foods, grams, totals from the image.
+- **chain**: the model's own food list, fed back as text.
+- **text**: the true food list as text. Real-world test splits this into seen and unseen meals.
 
-- **photo**: foods, grams, and totals straight from the image.
-- **chain**: the model's own food list, fed back in as a typed meal.
-- **text**: the true food list typed in. On the real-world test it is split into "seen" and "unseen" meals, to tell learning from memorizing the table.
+Report fields: parsed, food precision and recall, grams error, kcal and macro error.
 
-## Running it
-
-### Setup
+## Setup
 
 ```
 python -m venv venv
-venv\Scripts\activate            # Windows; elsewhere: source venv/bin/activate
-pip install torch torchvision    # the build that matches your machine; Kaggle already has them
+venv\Scripts\activate            # or: source venv/bin/activate
+pip install torch torchvision    # your machine's build; Kaggle has them
 pip install -r requirements.txt
 ```
 
-- Python 3.13 is what the project was tested with.
-- Downloading, building the files, reading results, and editing code need no GPU.
-- `train.py`, `test.py`, and `predict.py` need a GPU to be practical, so they run on Kaggle (below).
+- Python 3.13.
+- Download, process, and reading results need no GPU.
+- `train.py`, `test.py`, `predict.py` need a GPU: run them on Kaggle.
 
-### The scripts
+## Scripts
 
 ```
-python download.py                              # all four sources, or some: python download.py nutrition5k snapme
-python process.py                               # builds data/processed/
-python train.py                                 # everything, saves to runs/full_usda
-python train.py --mmfood none --no-usda         # Nutrition5k only, saves to runs/none
+python download.py                              # or: python download.py nutrition5k snapme
+python process.py
+python train.py                                 # -> runs/full_usda
+python train.py --mmfood none --no-usda         # Nutrition5k only -> runs/none
 python test.py --model runs/full_usda --data data/processed/test_real_world.jsonl --limit 0
 python predict.py --model runs/full_usda --image photo.jpg
 python predict.py --model runs/full_usda --text "2 eggs, 1 slice toast"
 ```
 
-- `download.py` skips files it already has, so re-run it after a crash. Some Nutrition5k and MM-Food links are dead; that "failed" count is normal, and `process.py` skips those rows.
-- `train.py` switches: `--mmfood full|labels|none` keeps MM-Food's estimated totals, keeps only its names and grams, or drops it. `--no-usda` leaves the typed meals out. Also `--epochs`, `--lr`, `--rank`, `--out`.
-- `--limit N` on `train.py` and `test.py` tries a few rows first. `test.py` scores 20 rows by default; `--limit 0` means all.
-- `test.py` writes `results/<run>_<test>.json` (the report) and `.jsonl` (every row, with the raw text of unreadable answers).
+- `download.py` skips existing files; re-run after a crash. Some links are dead; `process.py` skips those rows.
+- `--mmfood full|labels|none`: keep MM-Food's estimated totals, keep only names and grams, or drop it.
+- `--no-usda`: drop the typed meals. Also `--epochs`, `--lr`, `--rank`, `--out`.
+- `--limit N`: first N rows. `test.py` defaults to 20; `0` means all.
 
-### Kaggle
+## Kaggle
 
-Model runs use Kaggle's free GPU hours, started from this folder with the Kaggle CLI. The notebooks
-are in `notebooks/`: `quick_check` is a two-minute run that proves the setup works, and `full_run` is
-the real thing.
+Notebooks in `notebooks/`: `quick_check` (2 min, proves setup) and `full_run` (the real run).
 
-One-time setup:
+Once:
 
 ```
 uv tool install kaggle        # or: pip install kaggle
-kaggle auth login             # opens a browser
+kaggle auth login
 ```
 
-- Kaggle gives GPU and internet only to phone-verified accounts.
-- Notebooks belong to one Kaggle account, so put your username in the `id` line of each `notebooks/*/kernel-metadata.json`.
-- On Windows, run `setx PYTHONUTF8 1` once and reopen the terminal; without it the `logs` and `output` commands stop at the first progress bar with a `'charmap' codec` error.
-- Kaggle clones the code from GitHub, not from your disk. A fork must change the clone URL in the first code cell of each notebook.
+- GPU and internet need a phone-verified Kaggle account.
+- Put your username in the `id` line of each `notebooks/*/kernel-metadata.json`.
+- Forks: change the GitHub clone URL in each notebook's first code cell.
 
 Each run:
 
 ```
-git push                                                        # Kaggle clones the code from GitHub
-kaggle kernels push -p notebooks/full_run                       # upload and start; about 8 hours
-kaggle kernels status <you>/nutritionllm-full-run               # QUEUED, RUNNING, then COMPLETE or ERROR
-kaggle kernels logs <you>/nutritionllm-full-run --follow        # live log, once it is RUNNING
-kaggle kernels output <you>/nutritionllm-full-run -p results    # downloads output.zip and the log
-unzip -o results/output.zip                                     # PowerShell: Expand-Archive results\output.zip -DestinationPath . -Force
+git push                                                        # Kaggle clones from GitHub
+kaggle kernels push -p notebooks/full_run                       # ~8 hours
+kaggle kernels status <you>/nutritionllm-full-run
+kaggle kernels logs <you>/nutritionllm-full-run --follow
+kaggle kernels output <you>/nutritionllm-full-run -p results    # fix2.zip
+unzip -o results/fix2.zip                                       # PowerShell: Expand-Archive results\fix2.zip -DestinationPath . -Force
 ```
 
-- `<you>` is your Kaggle username; `push` also prints the notebook's web page, which shows the same status and log.
-- `full_run` clones the repo, downloads the data, does a 40-row quick try with a safety stop, trains and tests the two "Model" cells (edit those to change the experiment), and zips `results/` plus the run folders.
-- The zip holds everything the run made, `results/` and `runs/`, so unzipping at the project root puts them in place; each test's report is `results/<run>_<test>.json`.
-- If the status ends in `ERROR`, `output` still brings down the log, and the error is at its end.
-- The two-minute check is the same commands with `notebooks/quick_check` and `nutritionllm-quick-check`; it leaves `quick_check.txt` in the download.
-- Kaggle gives about 30 GPU hours a week and stops a run at 12 hours; a stopped run may save nothing, so keep runs under that.
-- Both notebooks `pip uninstall torchao` after installing; Kaggle's old copy makes peft refuse to load.
+- `full_run`: clone, download, 40-row quick try with a safety stop, two "Model" cells, zip. Edit the Model cells to change the experiment.
+- Kaggle kills runs at 12 hours and may save nothing.
+- Notebooks `pip uninstall torchao`; Kaggle's old copy breaks peft.
 
 ## Folders
 
-- `data/` the four sources and the `processed/` files; not in git.
-- `runs/` one folder per training run; the weight files are not in git.
-- `results/` one report and one per-row file per test; not in git.
-- `notebooks/` the two Kaggle notebooks and their settings files.
-- `docs/proposedFixes.md` the plan: what is wrong today and what to try next.
-- `AGENTS.md` the rules for anyone, human or AI, editing the code.
+- `data/`, `results/`: not in git.
+- `runs/`: one folder per run; weights not in git.
+- `docs/proposedFixes.md`: current numbers and next steps.
+- `AGENTS.md`: code rules.
