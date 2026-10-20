@@ -57,7 +57,8 @@ def fetch_all(name, jobs):
     errors = []
     with ThreadPoolExecutor(16) as pool:
         for n, error in enumerate(pool.map(lambda job: fetch(*job), jobs), 1):
-            errors += [error] if error else []
+            if error:
+                errors.append(error)
             print(f"{name}: {n}/{len(jobs)}", end="\r", flush=True)
     hint = f", e.g. {errors[0]}" if errors else ""
     print(f"{name}: {len(jobs) - len(errors)} ok, {len(errors)} failed{hint}")
@@ -91,10 +92,12 @@ def snapme():
     archive = f"{SNAP}/snapme.tar.gz"
     # the archive is deleted only after a full unpack, so a leftover one means the last try died
     if os.path.exists(f"{SNAP}/snapme_cs_db") and not os.path.exists(archive):
-        return print("snapme: already there")
+        print("snapme: already there")
+        return
     fetch_all("snapme archive", [(SNAP_URL, archive)])
     if not os.path.exists(archive):
-        return print("snapme: download failed, run again")
+        print("snapme: download failed, run again")
+        return
     count = 0
     with tarfile.open(archive) as tar:
         for m in tar:

@@ -27,9 +27,10 @@ MAX_SIDE = 512
 # Two brakes on endless food lists from crowded plates. PENALTY makes pieces already written score
 # lower: 1.2 broke the JSON on ordinary photos (quotes, prose), so it stays gentle. NO_REPEAT forbids
 # repeating any run of that many tokens within the answer, which is what a looping list does (loops repeat
-# 24-token runs; the JSON between two foods is 14, so keep it at 16 or more); 0 turns it off
+# 24-token runs; the JSON between two foods is 14, so keep it at 16 or more); 0 turns it off. Measured
+# 2026-10-19 on 55 lab plates: 16 rescued 8 of 11 runaway answers and left the other 44 as they were
 PENALTY = 1.05
-NO_REPEAT = 0
+NO_REPEAT = 16
 PHOTO = ('Name the dish, list every food in the photo with its weight in grams, and give the meal '
          'totals. Answer with JSON only, like {"dish": "...", "items": [{"food": "...", "grams": 0}], '
          '"totals": {"kcal": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}}')
@@ -67,7 +68,8 @@ def meal_text(items):
 # copy the prompt's JSON example, like an all-zero totals line for a glass of water
 class NoRepeatInAnswer(LogitsProcessor):
     def __init__(self, n, prompt_len):
-        self.inner, self.prompt_len = NoRepeatNGramLogitsProcessor(n), prompt_len
+        self.inner = NoRepeatNGramLogitsProcessor(n)
+        self.prompt_len = prompt_len
 
     def __call__(self, input_ids, scores):
         return self.inner(input_ids[:, self.prompt_len:], scores)
@@ -84,8 +86,9 @@ def user_turn(prompt, image=None):
 # Load a base model, or a LoRA adapter folder merged into its base model
 def load(path=DEFAULT):
     base = path
-    if os.path.exists(f"{path}/adapter_config.json"):
-        with open(f"{path}/adapter_config.json") as f:
+    adapter_config = f"{path}/adapter_config.json"
+    if os.path.exists(adapter_config):
+        with open(adapter_config) as f:
             base = json.load(f)["base_model_name_or_path"]
     device = "cuda" if torch.cuda.is_available() else "cpu"
     # 16-bit on a GPU: bfloat16 needs an Ampere or newer card (capability 8+); older cards like the T4

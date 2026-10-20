@@ -115,7 +115,7 @@ if __name__ == "__main__":
     model = get_peft_model(model, LoraConfig(r=a.rank, lora_alpha=2 * a.rank, lora_dropout=0.05, target_modules=TARGETS))
     model.print_trainable_parameters()
     model.train()
-    params = [q for q in model.parameters() if q.requires_grad]
+    params = [param for param in model.parameters() if param.requires_grad]
     opt = torch.optim.AdamW(params, lr=a.lr)
     sched = get_linear_schedule_with_warmup(opt, steps // 20, steps)
     os.makedirs(out, exist_ok=True)

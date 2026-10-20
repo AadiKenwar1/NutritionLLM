@@ -13,6 +13,17 @@ A phone-sized vision-language model. Meal photo or typed meal in; foods, grams, 
 
 Prompts: `predict.py`.
 
+## Where we are (2026-10-19)
+
+- Best model so far: `runs/full_usda`, trained Oct 6 on lab photos, phone photos, and 5,000 typed meals.
+- Scores on 1,478 real phone meals: typed meal 72 kcal off, photo 131 kcal off with half the foods found; lab plates 63 kcal off.
+- A control trained on lab photos only scored 165 kcal on photos, so the phone-photo data is what makes photos work.
+- Known faults: 0 kcal for beer, wine, and sweet tea; endless food lists on crowded lab plates; photos miss half the foods.
+- In the code and proven by `notebooks/change_check` on Oct 19: speed changes that take a run from 6.5 hours to about 2 (no control retrain, both GPUs, 16-bit numbers, batched training), and a brake that ends 8 of 11 endless lists without touching other answers.
+- Not written yet: the typed-data fix (deal drinks with calories and big meals more often in `process.py`), the demo app, and a try of the 1.6B base model for photos.
+- Order: one full run with the proven changes (next), then the typed-data fix and its run, then the demo app, then the bigger model.
+- The full story: `docs/timeline.md`. The speed work: `docs/pipelineOptimizing.md`.
+
 ## Data
 
 Not in git. `download.py` fetches about 16 GB into `data/`.

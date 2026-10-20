@@ -121,7 +121,7 @@ notebooks, checked by `notebooks/change_check`; the next full run measures the n
 
 ## Order
 
-- All four went in on 2026-10-15 and passed `notebooks/change_check` on 2026-10-19 (batched float16 training, both GPUs testing at once).
+- All four went in on 2026-10-15 and passed `notebooks/change_check` on 2026-10-19: batched float16 training (1.0 s per step of 4 chats, 6.9 GB), both GPUs testing at once (4 s per photo each).
 - The next full run must end near the old loss (0.30) and match or beat the 2026-10-06 scores, or cut 4 comes out.
 
 | Cut | Waste it removes | Phase it helps | Saves | Effort |

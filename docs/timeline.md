@@ -71,7 +71,7 @@ model behaves as it does on 2026-10-06. Scores come from `results/`: 1,478 SNAPM
 - New fault: 86 answers of exactly 0 kcal, 30 of them wrong (beer, wine, tea with milk or sugar).
 - Since: a progress line every 100 photos in `test.py`, [pipelineOptimizing.md](pipelineOptimizing.md), this document. Nothing removed.
 - 2026-10-15: the four speed cuts went in (no control retrain, both GPUs for tests, 16-bit numbers, batches of 8 at learning rate 2e-4), and `notebooks/change_check` was added to prove a change before a full run.
-- 2026-10-19: `change_check` ran twice: batched float16 training works (peak 12.9 GB at batch 8, so the default became 4), both GPUs test at once, but repeat penalty 1.2 broke the JSON on ordinary photos (2 of 5 readable), so it went back to 1.05 and a no-repeat brake (`NO_REPEAT`, `--ngram`) is the next thing to measure.
+- 2026-10-19: `change_check` ran twice: batched float16 training works (peak 12.9 GB at batch 8, so the default became 4), both GPUs test at once, but repeat penalty 1.2 broke the JSON on ordinary photos (2 of 5 readable), so it went back to 1.05. A third run measured a no-repeat brake (`NO_REPEAT`) on the 55 plates most likely to loop: at 16 it made 8 of 11 runaway answers readable and left the other 44 answers as they were (39 identical), so 16 is the default; batch 4 peaked at 6.9 GB.
 
 ## Scores over time
 
@@ -141,5 +141,5 @@ Lab, 498 Nutrition5k plates; the base model's lab test used 20 rows.
 
 - Typed: deal drinks with calories and large meals more often in `process.py`'s `usda()`.
 - Photo: the ceiling is MM-Food's round, estimated labels and the model's recall; options are better phone-photo labels, matching ingredients to portions, or a bigger base model.
-- Lab: a strong repeat penalty mangles JSON, so the brake under test is `no_repeat_ngram_size`; an item cap is the fallback.
+- Lab: the no-repeat brake is on (16); the rescued plates are hard ones (about 200 kcal off), so the lab average will rise a little while becoming honest.
 - Speed: see [pipelineOptimizing.md](pipelineOptimizing.md) before the next run.

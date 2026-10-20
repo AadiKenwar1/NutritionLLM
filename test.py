@@ -54,7 +54,8 @@ def matches(name, others):
 
 # Precision and recall of predicted food names, using matches() to decide a hit
 def food_scores(true, pred):
-    true, pred = [t.lower() for t in true], [str(p).lower() for p in pred]
+    true = [t.lower() for t in true]
+    pred = [str(p).lower() for p in pred]
     precision = sum(matches(x, true) for x in pred) / len(pred) if pred else 0
     recall = sum(matches(x, pred) for x in true) / len(true) if true else 0
     return precision, recall
