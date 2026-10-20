@@ -66,8 +66,8 @@ python predict.py --model runs/full_usda --text "2 eggs, 1 slice toast"
 
 - `download.py` skips existing files; re-run after a crash. Some links are dead; `process.py` skips those rows.
 - `--mmfood full|labels|none`: keep MM-Food's estimated totals, keep only names and grams, or drop it.
-- `--no-usda`: drop the typed meals. `--batch`: chats per step, default 8; `--lr` defaults to 2e-4. Also `--epochs`, `--rank`, `--out`.
-- `--limit N`: first N rows. `test.py` defaults to 20; `0` means all. `--penalty`: repeat penalty for answers, default `predict.PENALTY` (1.2).
+- `--no-usda`: drop the typed meals. `--batch`: chats per step, default 4; `--lr` defaults to 2e-4. Also `--epochs`, `--rank`, `--out`.
+- `--limit N`: first N rows. `test.py` defaults to 20; `0` means all. `--penalty` and `--ngram`: the two brakes on runaway answers, defaults in `predict.py`.
 
 ## Kaggle
 
@@ -95,7 +95,7 @@ kaggle kernels output <you>/nutritionllm-quick-check -p results # passed if quic
 Change check, after changing `train.py`, `predict.py`, or `test.py`:
 
 ```
-kaggle kernels push -p notebooks/change_check                   # ~30 min: quick try, both GPUs, repeat-penalty sweep
+kaggle kernels push -p notebooks/change_check                   # ~35 min: quick try, both GPUs, runaway-list brakes
 kaggle kernels output <you>/nutritionllm-change-check -p results
 ```
 

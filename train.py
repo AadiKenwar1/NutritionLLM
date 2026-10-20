@@ -97,7 +97,7 @@ if __name__ == "__main__":
     p.add_argument("--out", help="run folder; default runs/<mmfood>, with _usda added when --usda is on")
     p.add_argument("--limit", type=int, default=0, help="train on only the first N rows; 0 means all")
     p.add_argument("--epochs", type=int, default=1)
-    p.add_argument("--batch", type=int, default=8, help="chats per training step")
+    p.add_argument("--batch", type=int, default=4, help="chats per training step")
     p.add_argument("--lr", type=float, default=2e-4, help="was 1e-4 with one chat per step")
     p.add_argument("--rank", type=int, default=16, help="LoRA rank; alpha is twice this")
     a = p.parse_args()

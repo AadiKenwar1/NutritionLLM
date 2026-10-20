@@ -7,8 +7,8 @@ the same way. On a GPU the model runs in 16-bit numbers (bfloat16 on newer cards
 ones like Kaggle's T4), which halves memory and about doubles speed. Photos are shrunk to 512 px on
 the longest side (the model's native tile size), so every image costs about the same number of
 tokens. A few SNAPMe photos are iPhone HEIC files named .jpeg, so the HEIC reader is switched on.
-Look at PHOTO and TEXT for the exact wording and JSON shape the model is asked for, and at PENALTY,
-which keeps crowded plates from turning into endless food lists.
+Look at PHOTO and TEXT for the exact wording and JSON shape the model is asked for, and at PENALTY and
+NO_REPEAT, the brakes on crowded plates turning into endless food lists.
 """
 import argparse
 import json
@@ -18,14 +18,18 @@ import torch
 from PIL import Image
 from pillow_heif import register_heif_opener
 from transformers import AutoModelForImageTextToText, AutoProcessor
+from transformers import LogitsProcessor, LogitsProcessorList, NoRepeatNGramLogitsProcessor
 
 register_heif_opener()
 
 DEFAULT = "LiquidAI/LFM2.5-VL-450M"
 MAX_SIDE = 512
-# Repeat penalty while writing an answer: pieces already written score lower. At 1.05 crowded lab
-# plates looped into endless food lists; too high and it also shuns repeated digits in grams
-PENALTY = 1.2
+# Two brakes on endless food lists from crowded plates. PENALTY makes pieces already written score
+# lower: 1.2 broke the JSON on ordinary photos (quotes, prose), so it stays gentle. NO_REPEAT forbids
+# repeating any run of that many tokens within the answer, which is what a looping list does (loops repeat
+# 24-token runs; the JSON between two foods is 14, so keep it at 16 or more); 0 turns it off
+PENALTY = 1.05
+NO_REPEAT = 0
 PHOTO = ('Name the dish, list every food in the photo with its weight in grams, and give the meal '
          'totals. Answer with JSON only, like {"dish": "...", "items": [{"food": "...", "grams": 0}], '
          '"totals": {"kcal": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}}')
@@ -57,6 +61,16 @@ def num(x):
 def meal_text(items):
     parts = [f"{i['grams']} g {i['food']}" if num(i.get("grams")) else str(i["food"]) for i in items]
     return ", ".join(parts)
+
+
+# Ban repeating a run of n tokens inside the answer only; the prompt is exempt, so an answer may still
+# copy the prompt's JSON example, like an all-zero totals line for a glass of water
+class NoRepeatInAnswer(LogitsProcessor):
+    def __init__(self, n, prompt_len):
+        self.inner, self.prompt_len = NoRepeatNGramLogitsProcessor(n), prompt_len
+
+    def __call__(self, input_ids, scores):
+        return self.inner(input_ids[:, self.prompt_len:], scores)
 
 
 # Build the user turn of a chat: an optional image followed by the prompt text
@@ -94,9 +108,12 @@ def ask(model, processor, prompt, image=None, max_new_tokens=1000):
     inputs = processor.apply_chat_template([user_turn(prompt, image)], add_generation_prompt=True,
                                            return_tensors="pt", return_dict=True, tokenize=True)
     inputs = inputs.to(model.device, dtype=model.dtype)
+    prompt_len = inputs["input_ids"].shape[1]
+    brakes = LogitsProcessorList([NoRepeatInAnswer(NO_REPEAT, prompt_len)] if NO_REPEAT else [])
     with torch.no_grad():
-        out = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False, repetition_penalty=PENALTY)
-    return processor.decode(out[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True,
+        out = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False, repetition_penalty=PENALTY,
+                             logits_processor=brakes)
+    return processor.decode(out[0, prompt_len:], skip_special_tokens=True,
                             clean_up_tokenization_spaces=False)
 
 

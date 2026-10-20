@@ -105,7 +105,7 @@ notebooks, checked by `notebooks/change_check`; the next full run measures the n
 - Keep photo chats and typed chats in separate groups, since the processor handles a batch of all-photo or all-text chats more simply than a mix.
 - Fewer, bigger steps may need a different learning rate; compare the final loss with the one-at-a-time run (Model A ended near 0.28, Model B near 0.41) and the test scores must match or beat it.
 - About 30 lines in `train.py`, proven with `--limit` before a full run.
-- Done: `train.py --batch 8` (the default) at learning rate 2e-4; `encode()` pads a batch and masks prompts and padding.
+- Done: `train.py --batch 4` (the default; 8 peaked at 12.9 GB of 15 on the quick try) at learning rate 2e-4; `encode()` pads a batch and masks prompts and padding.
 
 **Solves:** the card stays busy during training, 1 h 45 min to about 30 min. **Does not touch:** the download, the tests, or the control. **Risk:** learning changes shape, so the loss and scores must be compared. **Saves:** about 1 h 15 min.
 
@@ -121,7 +121,7 @@ notebooks, checked by `notebooks/change_check`; the next full run measures the n
 
 ## Order
 
-- All four went in on 2026-10-15; `notebooks/change_check` proves a change in half an hour (quick try, both GPUs, repeat-penalty sweep) before a full run.
+- All four went in on 2026-10-15 and passed `notebooks/change_check` on 2026-10-19 (batched float16 training, both GPUs testing at once).
 - The next full run must end near the old loss (0.30) and match or beat the 2026-10-06 scores, or cut 4 comes out.
 
 | Cut | Waste it removes | Phase it helps | Saves | Effort |

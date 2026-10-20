@@ -124,13 +124,16 @@ if __name__ == "__main__":
     p.add_argument("--data", default="data/processed/test_lab.jsonl")
     p.add_argument("--limit", type=int, default=20, help="rows to score after a fixed shuffle; 0 means all")
     p.add_argument("--penalty", type=float, help="repeat penalty for answers; default predict.PENALTY")
+    p.add_argument("--ngram", type=int, help="forbid repeating any run of this many tokens; default predict.NO_REPEAT")
     a = p.parse_args()
     with open(a.data, encoding="utf-8") as f:
         rows = [json.loads(line) for line in f]
     random.Random(0).shuffle(rows)
     rows = rows[:a.limit or None]
-    if a.penalty:
+    if a.penalty is not None:
         predict.PENALTY = a.penalty
+    if a.ngram is not None:
+        predict.NO_REPEAT = a.ngram
     model, processor = predict.load(a.model)
     os.makedirs("results", exist_ok=True)
     model_name = os.path.basename(a.model.rstrip("/"))
