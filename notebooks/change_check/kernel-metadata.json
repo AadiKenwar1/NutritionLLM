@@ -1,0 +1,16 @@
+{
+  "id": "aadikenwar/nutritionllm-change-check",
+  "title": "NutritionLLM change check",
+  "code_file": "change_check.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "aadikenwar/nutritionllm-full-usda"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

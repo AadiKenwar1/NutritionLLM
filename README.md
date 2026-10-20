@@ -66,12 +66,12 @@ python predict.py --model runs/full_usda --text "2 eggs, 1 slice toast"
 
 - `download.py` skips existing files; re-run after a crash. Some links are dead; `process.py` skips those rows.
 - `--mmfood full|labels|none`: keep MM-Food's estimated totals, keep only names and grams, or drop it.
-- `--no-usda`: drop the typed meals. Also `--epochs`, `--lr`, `--rank`, `--out`.
-- `--limit N`: first N rows. `test.py` defaults to 20; `0` means all.
+- `--no-usda`: drop the typed meals. `--batch`: chats per step, default 8; `--lr` defaults to 2e-4. Also `--epochs`, `--rank`, `--out`.
+- `--limit N`: first N rows. `test.py` defaults to 20; `0` means all. `--penalty`: repeat penalty for answers, default `predict.PENALTY` (1.2).
 
 ## Kaggle
 
-Two notebooks in `notebooks/`. Both clone the repo from GitHub, so `git push` first.
+Three notebooks in `notebooks/`. All clone the repo from GitHub, so `git push` first.
 
 Once:
 
@@ -92,17 +92,27 @@ kaggle kernels status <you>/nutritionllm-quick-check            # QUEUED, RUNNIN
 kaggle kernels output <you>/nutritionllm-quick-check -p results # passed if quick_check.txt is there
 ```
 
+Change check, after changing `train.py`, `predict.py`, or `test.py`:
+
+```
+kaggle kernels push -p notebooks/change_check                   # ~30 min: quick try, both GPUs, repeat-penalty sweep
+kaggle kernels output <you>/nutritionllm-change-check -p results
+```
+
+- It tests the repeat penalty with the last good adapter, a private Kaggle dataset named in its `kernel-metadata.json`; make yours once with `kaggle datasets create -p .` inside a folder holding `runs/<run>/adapter_*` and a `dataset-metadata.json`.
+
 Full run:
 
 ```
-kaggle kernels push -p notebooks/full_run                       # ~1-8 hours
+kaggle kernels push -p notebooks/full_run                       # hours; see docs/pipelineOptimizing.md
 kaggle kernels status <you>/nutritionllm-full-run
 kaggle kernels logs <you>/nutritionllm-full-run --follow        # once RUNNING
 kaggle kernels output <you>/nutritionllm-full-run -p results    # output.zip
 unzip -o results/output.zip                                     # PowerShell: Expand-Archive results\output.zip -DestinationPath . -Force
 ```
 
-- `full_run`: clone, download, 40-row quick try with a safety stop, two "Model" cells, zip. Edit the Model cells to change the experiment.
+- `full_run`: clone, download, 40-row quick try with a safety stop, one "Model" cell that trains and then runs both tests at once (one per GPU), zip. Edit the Model cell to change the experiment.
+- The control (`runs/none`) is not retrained; its Oct 6 scores are in `docs/timeline.md`. Rerun it only when the test data or `test.py` scoring changes.
 - Kaggle kills runs at 12 hours and may save nothing.
 - Notebooks `pip uninstall torchao`; Kaggle's old copy breaks peft.
 
@@ -112,4 +122,6 @@ unzip -o results/output.zip                                     # PowerShell: Ex
 - `runs/`: one folder per run; weights not in git.
 - `notebooks/`: the two Kaggle notebooks and their `kernel-metadata.json` settings.
 - `docs/proposedFixes.md`: current numbers and next steps.
+- `docs/pipelineOptimizing.md`: where a Kaggle run's time goes and four cuts to shorten it.
+- `docs/timeline.md`: what was added or removed when, scores after each run, and why the model behaves as it does.
 - `AGENTS.md`: code rules.

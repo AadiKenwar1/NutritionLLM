@@ -123,11 +123,14 @@ if __name__ == "__main__":
     p.add_argument("--model", default=predict.DEFAULT)
     p.add_argument("--data", default="data/processed/test_lab.jsonl")
     p.add_argument("--limit", type=int, default=20, help="rows to score after a fixed shuffle; 0 means all")
+    p.add_argument("--penalty", type=float, help="repeat penalty for answers; default predict.PENALTY")
     a = p.parse_args()
     with open(a.data, encoding="utf-8") as f:
         rows = [json.loads(line) for line in f]
     random.Random(0).shuffle(rows)
     rows = rows[:a.limit or None]
+    if a.penalty:
+        predict.PENALTY = a.penalty
     model, processor = predict.load(a.model)
     os.makedirs("results", exist_ok=True)
     model_name = os.path.basename(a.model.rstrip("/"))
@@ -139,7 +142,7 @@ if __name__ == "__main__":
             result = score_row(model, processor, row)
             scored.append(result)
             f.write(json.dumps(result) + "\n")
-            print(f"{n}/{len(rows)} rows, {(time.time() - start) / n:.0f} s each", end="\r", flush=True)
-    print()
+            if n % 100 == 0 or n == len(rows):  # a full line, so Kaggle's log shows progress
+                print(f"{n}/{len(rows)} rows, {(time.time() - start) / n:.0f} s each", flush=True)
     with open(f"{name}.json", "w") as f:
         json.dump(summarize(scored), f, indent=1)

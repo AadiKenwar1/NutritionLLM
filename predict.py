@@ -3,10 +3,12 @@ This is the bridge between the model and the rest of NutritionLLM: test.py calls
 checkpoint, and train.py reuses the same prompts, image handling, and meal text so training and
 testing match. The model path can be a Hugging Face id or a local folder. A LoRA adapter folder is
 applied on top of its base model, so the stock model and every fine-tuned run are loaded and scored
-the same way. Photos are shrunk to 512 px on the longest side (the model's native tile size), so
-every image costs about the same number of tokens. A few SNAPMe photos are iPhone HEIC files named
-.jpeg, so the HEIC reader is switched on. Look at PHOTO and TEXT for the exact wording
-and JSON shape the model is asked for.
+the same way. On a GPU the model runs in 16-bit numbers (bfloat16 on newer cards, float16 on older
+ones like Kaggle's T4), which halves memory and about doubles speed. Photos are shrunk to 512 px on
+the longest side (the model's native tile size), so every image costs about the same number of
+tokens. A few SNAPMe photos are iPhone HEIC files named .jpeg, so the HEIC reader is switched on.
+Look at PHOTO and TEXT for the exact wording and JSON shape the model is asked for, and at PENALTY,
+which keeps crowded plates from turning into endless food lists.
 """
 import argparse
 import json
@@ -21,6 +23,9 @@ register_heif_opener()
 
 DEFAULT = "LiquidAI/LFM2.5-VL-450M"
 MAX_SIDE = 512
+# Repeat penalty while writing an answer: pieces already written score lower. At 1.05 crowded lab
+# plates looped into endless food lists; too high and it also shuns repeated digits in grams
+PENALTY = 1.2
 PHOTO = ('Name the dish, list every food in the photo with its weight in grams, and give the meal '
          'totals. Answer with JSON only, like {"dish": "...", "items": [{"food": "...", "grams": 0}], '
          '"totals": {"kcal": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}}')
@@ -69,9 +74,12 @@ def load(path=DEFAULT):
         with open(f"{path}/adapter_config.json") as f:
             base = json.load(f)["base_model_name_or_path"]
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    # bfloat16 needs a GPU with compute capability 8+ (Ampere); older cards like the T4 only emulate it
-    fast = device == "cuda" and torch.cuda.get_device_capability()[0] >= 8
-    dtype = torch.bfloat16 if fast else torch.float32
+    # 16-bit on a GPU: bfloat16 needs an Ampere or newer card (capability 8+); older cards like the T4
+    # take float16, which overflows past 65,504 and would show up as garbage answers in the quick try
+    if device == "cuda":
+        dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+    else:
+        dtype = torch.float32
     model = AutoModelForImageTextToText.from_pretrained(base, dtype=dtype).to(device)
     if base != path:
         from peft import PeftModel
@@ -84,9 +92,10 @@ def load(path=DEFAULT):
 # spare: on busy plates the model lists more foods than the truth, and a cut-off reply is unreadable
 def ask(model, processor, prompt, image=None, max_new_tokens=1000):
     inputs = processor.apply_chat_template([user_turn(prompt, image)], add_generation_prompt=True,
-                                           return_tensors="pt", return_dict=True, tokenize=True).to(model.device)
+                                           return_tensors="pt", return_dict=True, tokenize=True)
+    inputs = inputs.to(model.device, dtype=model.dtype)
     with torch.no_grad():
-        out = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False, repetition_penalty=1.05)
+        out = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False, repetition_penalty=PENALTY)
     return processor.decode(out[0, inputs["input_ids"].shape[1]:], skip_special_tokens=True,
                             clean_up_tokenization_spaces=False)
 

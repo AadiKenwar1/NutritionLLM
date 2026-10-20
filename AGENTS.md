@@ -16,6 +16,9 @@ One model handles every task. Each task gets its own baseline and test so weak s
 ## Workflow
 - Always run the code simplifier plugin after writing more then 100 lines of code
 
+## Documentation Style
+- Keep documentation brief, skimmable, and to the point. Use bullets and simple word choice when possible. Remove fluff from sentences. Keep documentation under 150 lines.
+
 ## Decisions
 - MM-Food macros are estimates from another model (distillation), not measured. Nutrition5k macros are measured.
 - process.py always saves the richest data. Switches live in train.py.
